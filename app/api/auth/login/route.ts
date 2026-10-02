@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import sql from '@/lib/db';
 import { verifyPassword } from '@/lib/password';
 import { createSession } from '@/lib/auth';
 
@@ -10,26 +10,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Username and password are required.' }, { status: 400 });
   }
 
-  const { data: user, error } = await supabaseAdmin
-    .from('app_users')
-    .select('id, username, role, password_hash')
-    .eq('username', username.trim().toLowerCase())
-    .single();
+  const rows = await sql`SELECT id, username, role, password_hash FROM app_users WHERE username = ${username.trim().toLowerCase()} LIMIT 1`;
 
-  if (error || !user) {
+  if (rows.length === 0) {
     return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
   }
 
+  const user = rows[0];
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) {
     return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
   }
 
-  await createSession({
-    userId: user.id,
-    username: user.username,
-    role: user.role as 'admin' | 'examiner',
-  });
-
+  await createSession({ userId: user.id, username: user.username, role: user.role });
   return NextResponse.json({ role: user.role });
 }

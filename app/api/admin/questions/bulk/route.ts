@@ -1,59 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import sql from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
-// POST /api/admin/questions/bulk — insert many questions at once (CSV import)
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!session || session.role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { exam_id, questions } = await req.json();
-
   if (!exam_id || !Array.isArray(questions) || questions.length === 0) {
     return NextResponse.json({ error: 'exam_id and questions array are required.' }, { status: 400 });
   }
 
-  // Verify exam exists
-  const { data: exam } = await supabaseAdmin
-    .from('exams')
-    .select('id')
-    .eq('id', exam_id)
-    .single();
+  const exams = await sql`SELECT id FROM exams WHERE id = ${exam_id} LIMIT 1`;
+  if (exams.length === 0) return NextResponse.json({ error: 'Exam not found.' }, { status: 404 });
 
-  if (!exam) return NextResponse.json({ error: 'Exam not found.' }, { status: 404 });
+  const maxRow = await sql`SELECT COALESCE(MAX(sort_order), -1) as max FROM questions WHERE exam_id = ${exam_id}`;
+  const baseOrder = (maxRow[0].max ?? -1) + 1;
 
-  // Get current max sort_order
-  const { data: maxRow } = await supabaseAdmin
-    .from('questions')
-    .select('sort_order')
-    .eq('exam_id', exam_id)
-    .order('sort_order', { ascending: false })
-    .limit(1)
-    .single();
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    await sql`INSERT INTO questions (exam_id, question_text, question_type, choices, answer, points, sort_order) VALUES (${exam_id}, ${q.question_text}, ${q.question_type}, ${q.choices ? JSON.stringify(q.choices) : null}, ${q.answer}, ${q.points ?? 1}, ${baseOrder + i})`;
+  }
 
-  const baseOrder = (maxRow?.sort_order ?? -1) + 1;
-
-  const rows = questions.map((q: {
-    question_text: string;
-    question_type: string;
-    choices?: string[] | null;
-    answer: string;
-    points?: number;
-    sort_order?: number;
-  }, idx: number) => ({
-    exam_id,
-    question_text: q.question_text,
-    question_type: q.question_type,
-    choices: q.choices ?? null,
-    answer: q.answer,
-    points: q.points ?? 1,
-    sort_order: baseOrder + idx,
-  }));
-
-  const { error } = await supabaseAdmin.from('questions').insert(rows);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({ inserted: rows.length }, { status: 201 });
+  return NextResponse.json({ inserted: questions.length }, { status: 201 });
 }

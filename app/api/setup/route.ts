@@ -1,10 +1,5 @@
-/**
- * ONE-TIME setup route: seeds the admin user from env vars.
- * Call GET /api/setup once after deploying.
- * It is idempotent — safe to call multiple times.
- */
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import sql from '@/lib/db';
 import { hashPassword } from '@/lib/password';
 
 export async function GET() {
@@ -12,34 +7,16 @@ export async function GET() {
   const password = process.env.ADMIN_PASSWORD;
 
   if (!username || !password) {
-    return NextResponse.json(
-      { error: 'ADMIN_USERNAME or ADMIN_PASSWORD env var is missing.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'ADMIN_USERNAME or ADMIN_PASSWORD env var is missing.' }, { status: 500 });
   }
 
-  // Check if admin already exists
-  const { data: existing } = await supabaseAdmin
-    .from('app_users')
-    .select('id')
-    .eq('username', username.toLowerCase())
-    .single();
-
-  if (existing) {
+  const existing = await sql`SELECT id FROM app_users WHERE username = ${username.toLowerCase()} LIMIT 1`;
+  if (existing.length > 0) {
     return NextResponse.json({ message: 'Admin user already exists. Setup skipped.' });
   }
 
   const password_hash = await hashPassword(password);
-
-  const { error } = await supabaseAdmin.from('app_users').insert({
-    username: username.toLowerCase(),
-    password_hash,
-    role: 'admin',
-  });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  await sql`INSERT INTO app_users (username, password_hash, role) VALUES (${username.toLowerCase()}, ${password_hash}, 'admin')`;
 
   return NextResponse.json({ message: 'Admin user created successfully.' });
 }

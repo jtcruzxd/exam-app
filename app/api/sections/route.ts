@@ -1,45 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import sql from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
-// GET /api/sections — public, returns all section names for the dropdown
 export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from('sections')
-    .select('id, name')
-    .order('name');
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
+  const rows = await sql`SELECT id, name FROM sections ORDER BY name`;
+  return NextResponse.json(rows);
 }
 
-// POST /api/sections — admin only: create a section
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!session || session.role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { name } = await req.json();
-  if (!name?.trim()) {
-    return NextResponse.json({ error: 'Section name is required.' }, { status: 400 });
+  if (!name?.trim()) return NextResponse.json({ error: 'Section name is required.' }, { status: 400 });
+
+  try {
+    const rows = await sql`INSERT INTO sections (name) VALUES (${name.trim().toUpperCase()}) RETURNING id, name`;
+    return NextResponse.json(rows[0], { status: 201 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('unique')) return NextResponse.json({ error: 'Section already exists.' }, { status: 409 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  const { data, error } = await supabaseAdmin
-    .from('sections')
-    .insert({ name: name.trim().toUpperCase() })
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === '23505') {
-      return NextResponse.json({ error: 'Section already exists.' }, { status: 409 });
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data, { status: 201 });
 }

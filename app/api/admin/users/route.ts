@@ -1,71 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import sql from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { hashPassword } from '@/lib/password';
 
-// GET /api/admin/users — list all examiners with their assigned sections
 export async function GET() {
   const session = await getSession();
-  if (!session || session.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!session || session.role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data, error } = await supabaseAdmin
-    .from('app_users')
-    .select(`
-      id,
-      username,
-      role,
-      created_at,
-      examiner_sections (
-        section_id,
-        sections ( id, name )
-      )
-    `)
-    .eq('role', 'examiner')
-    .order('username');
+  const users = await sql`SELECT id, username, role, created_at FROM app_users WHERE role = 'examiner' ORDER BY username`;
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  const result = await Promise.all(users.map(async (u) => {
+    const sections = await sql`SELECT es.section_id, s.name FROM examiner_sections es JOIN sections s ON s.id = es.section_id WHERE es.user_id = ${u.id}`;
+    return {
+      ...u,
+      examiner_sections: sections.map((s) => ({ section_id: s.section_id, sections: { id: s.section_id, name: s.name } })),
+    };
+  }));
+
+  return NextResponse.json(result);
 }
 
-// POST /api/admin/users — create an examiner
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!session || session.role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { username, password, sectionIds } = await req.json();
-
-  if (!username?.trim() || !password) {
-    return NextResponse.json({ error: 'Username and password are required.' }, { status: 400 });
-  }
-
-  if (password.length < 8) {
-    return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
-  }
+  if (!username?.trim() || !password) return NextResponse.json({ error: 'Username and password are required.' }, { status: 400 });
+  if (password.length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
 
   const password_hash = await hashPassword(password);
 
-  const { data: user, error: userErr } = await supabaseAdmin
-    .from('app_users')
-    .insert({ username: username.trim().toLowerCase(), password_hash, role: 'examiner' })
-    .select()
-    .single();
+  try {
+    const rows = await sql`INSERT INTO app_users (username, password_hash, role) VALUES (${username.trim().toLowerCase()}, ${password_hash}, 'examiner') RETURNING id, username`;
+    const user = rows[0];
 
-  if (userErr) {
-    if (userErr.code === '23505') {
-      return NextResponse.json({ error: 'Username already exists.' }, { status: 409 });
+    if (Array.isArray(sectionIds) && sectionIds.length > 0) {
+      for (const sid of sectionIds) {
+        await sql`INSERT INTO examiner_sections (user_id, section_id) VALUES (${user.id}, ${sid})`;
+      }
     }
-    return NextResponse.json({ error: userErr.message }, { status: 500 });
-  }
 
-  // Assign sections
-  if (Array.isArray(sectionIds) && sectionIds.length > 0) {
-    const rows = sectionIds.map((sid: string) => ({ user_id: user.id, section_id: sid }));
-    await supabaseAdmin.from('examiner_sections').insert(rows);
+    return NextResponse.json({ id: user.id, username: user.username }, { status: 201 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('unique')) return NextResponse.json({ error: 'Username already exists.' }, { status: 409 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  return NextResponse.json({ id: user.id, username: user.username }, { status: 201 });
 }
