@@ -1,0 +1,11 @@
+question,type,choice_a,choice_b,choice_c,choice_d,answer,points
+What is the capital of the Philippines?,mc,Manila,Cebu,Davao,Quezon City,Manila,1
+The Earth revolves around the Sun.,tf,,,,,True,1
+What is 7 multiplied by 8?,mc,54,56,58,64,56,1
+Water boils at 100 degrees Celsius at sea level.,tf,,,,,True,1
+What is the chemical symbol for Gold?,mc,Go,Gd,Au,Ag,Au,2
+Name the author of Noli Me Tangere.,sa,,,,,Jose Rizal,2
+Which planet is known as the Red Planet?,mc,Venus,Mars,Jupiter,Saturn,Mars,1
+The mitochondria is the powerhouse of the cell.,tf,,,,,True,1
+What is 15% of 200?,sa,,,,,30,2
+How many sides does a hexagon have?,mc,5,6,7,8,6,1
