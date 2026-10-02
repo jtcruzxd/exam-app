@@ -21,8 +21,13 @@ export async function GET(req: NextRequest) {
     FROM questions WHERE exam_id = ${exam.id} ORDER BY sort_order
   `;
 
+  const parsed = questions.map((q) => ({
+    ...q,
+    choices: typeof q.choices === 'string' ? JSON.parse(q.choices) : q.choices,
+  }));
+
   // Fisher-Yates shuffle
-  const shuffled = [...questions];
+  const shuffled = [...parsed];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];

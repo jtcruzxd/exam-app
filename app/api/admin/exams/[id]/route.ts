@@ -10,7 +10,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (exams.length === 0) return NextResponse.json({ error: 'Exam not found.' }, { status: 404 });
 
   const questions = await sql`SELECT id, question_text, question_type, choices, answer, points, sort_order FROM questions WHERE exam_id = ${params.id} ORDER BY sort_order`;
-  return NextResponse.json({ ...exams[0], questions });
+  const parsed = questions.map((q) => ({
+    ...q,
+    choices: typeof q.choices === 'string' ? JSON.parse(q.choices) : q.choices,
+  }));
+  return NextResponse.json({ ...exams[0], questions: parsed });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
