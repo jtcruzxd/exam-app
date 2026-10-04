@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const breakdown = questions.map((q) => {
     totalPoints += q.points;
     const studentAnswer: string = (answers[q.id] ?? '').toString().trim();
-    const correct = q.question_type === 'sa'
+    const correct = q.question_type === 'sa' || q.question_type === 'tf'
       ? studentAnswer.toLowerCase() === q.answer.toLowerCase()
       : studentAnswer === q.answer;
     if (correct) score += q.points;
