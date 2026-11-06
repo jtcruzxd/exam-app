@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const rows = await sql`SELECT id, name FROM sections ORDER BY name`;
   return NextResponse.json(rows);

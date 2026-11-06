@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sql from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const sectionName = req.nextUrl.searchParams.get('section');
   if (!sectionName) return NextResponse.json({ error: 'Section is required.' }, { status: 400 });

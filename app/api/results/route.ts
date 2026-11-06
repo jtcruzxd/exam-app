@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   const { studentName, sectionId, examId, answers } = await req.json();
   if (!studentName?.trim() || !sectionId || !examId || !answers) {
