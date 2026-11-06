@@ -1,11 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server';
-import sql from '@/lib/db';
+import { type NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import sql from '@/lib/db';
 
-export async function GET() {
-  const rows = await sql`SELECT site_title, site_description FROM settings WHERE id = 1 LIMIT 1`;
-  if (rows.length === 0) return NextResponse.json({ site_title: 'Examination System', site_description: '' });
-  return NextResponse.json(rows[0]);
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+export async function GET(req: NextRequest) {
+  // Require a valid host header — this prevents Next.js from prerendering
+  // this route at build time (build-time requests have no host).
+  const host = req.headers.get('host');
+  if (!host) {
+    return NextResponse.json(
+      { site_title: 'Examination System', site_description: '' }
+    );
+  }
+
+  try {
+    const rows = await sql`SELECT site_title, site_description FROM settings WHERE id = 1 LIMIT 1`;
+    if (rows.length === 0) return NextResponse.json({ site_title: 'Examination System', site_description: '' });
+    return NextResponse.json(rows[0]);
+  } catch {
+    return NextResponse.json({ site_title: 'Examination System', site_description: '' });
+  }
 }
 
 export async function PUT(req: NextRequest) {
